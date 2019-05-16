@@ -11,16 +11,16 @@ import (
 	"github.com/spf13/viper"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	//corev1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	//utilexec "k8s.io/client-go/util/exec"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/client-go/kubernetes/scheme"
-	//"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/client-go/tools/remotecommand"
 	//"k8s.io/api/extensions/v1beta1"
-	//"os"
+	"os"
 	//"os/exec"
 	//"path/filepath"
 	"strings"
@@ -200,21 +200,178 @@ func (o *OrdsOperations) Validate(cmd *cobra.Command) error {
 func (o *OrdsOperations) Run() error {
 	
 	if o.UserSpecifiedCreate {
-		fmt.Printf("Creating Ords Http Deployment in namespace %v...\n",o.UserSpecifiedNamespace)
-		Deployclient := o.clientset.AppsV1().Deployments(o.UserSpecifiedNamespace)
-			result, err := Deployclient.Create(o.ordshttp)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Printf("Created Ords Http Deployment: %q.\n", result.GetObjectMeta().GetName())
-		 return nil
+		CreateDeployment(o)
 	}
-	
+
 	if o.UserSpecifiedDelete {
+		DeleteDeployment(o)
+		DeleteOrdsSchemas(o)
 		
-		return nil
-   }
-   
+ 	}
 return nil
  
+}
+
+func CreateDeployment(o *OrdsOperations) {
+	fmt.Printf("Creating Ords Http Deployment in namespace %v...\n",o.UserSpecifiedNamespace)
+	Deployclient := o.clientset.AppsV1().Deployments(o.UserSpecifiedNamespace)
+		result, err := Deployclient.Create(o.ordshttp)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Created Ords Http Deployment: %q.\n", result.GetObjectMeta().GetName())
+	
+}
+
+func DeleteDeployment(o *OrdsOperations) {
+	fmt.Printf("Deleting Ords Http Deployment in namespace %v...\n",o.UserSpecifiedNamespace)
+	Deployclient := o.clientset.AppsV1().Deployments(o.UserSpecifiedNamespace)
+	deletePolicy := metav1.DeletePropagationForeground
+	listOptions := metav1.ListOptions{
+        LabelSelector: "app=peordshttp",
+        Limit:         100,
+	}
+	list, err := Deployclient.List(listOptions)
+	if err != nil {
+		panic(err)
+	}
+	
+	if len(list.Items) == 0 {
+		fmt.Println("No ords-http with label app=peordshttp Deployment found")
+		return
+	} else {
+	for _, d := range list.Items {
+		fmt.Printf(" * %s \n", d.Name)
+	  }
+    }
+    if err := Deployclient.DeleteCollection(&metav1.DeleteOptions{
+		PropagationPolicy: &deletePolicy,
+	    },listOptions); err != nil {
+		panic(err)
+	}
+	fmt.Printf("Deleted ords-http deployment in namespace %v.\n",o.UserSpecifiedNamespace)
+}
+
+func DeleteOrdsSchemas(o *OrdsOperations) {
+	CreateSqlplusPod(o)
+
+	fmt.Printf("Dropping Ords schemas(ORDS_METADA,ORDS_PUBLIC_USER) in Target DB....\n")
+	sqltext := "sqlplus " + "sys/" + o.UserSpecifiedSyspassword + "@" + o.UserSpecifiedDbhost + ":" + o.UserSpecifiedDbport + "/" + o.UserSpecifiedService + " as sysdba " + "@dropords.sql "
+	//fmt.Println(sqltext)
+	SqlCommand := []string{"/bin/sh", "-c", sqltext}	 
+	Podname := "sqlpluspod"
+	err := ExecPodCmd(o,Podname,SqlCommand)
+	if err != nil {
+		fmt.Printf("Error occured in the Pod ,Sqlcommand %q. Error: %+v\n", SqlCommand, err)
+	} 
+
+	DeleteSqlplusPod(o)
+
+}
+
+func ExecPodCmd(o *OrdsOperations,Podname string,SqlCommand []string) error {
+	
+	execReq := o.clientset.CoreV1().RESTClient().Post().
+	    Resource("pods").
+		Name(Podname).
+		Namespace("default").
+		SubResource("exec")
+
+    execReq.VersionedParams(&corev1.PodExecOptions{
+		Command:   SqlCommand,
+		Stdin:     true,
+		Stdout:    true,
+		Stderr:    true,
+		}, scheme.ParameterCodec)
+
+	exec, err := remotecommand.NewSPDYExecutor(o.restConfig, "POST", execReq.URL())
+	if err != nil {
+		return fmt.Errorf("error while creating Executor: %v", err)
+	}
+
+	err = exec.Stream(remotecommand.StreamOptions{
+			Stdin:  os.Stdin,
+			Stdout: os.Stdout,
+			Stderr: os.Stderr,
+			Tty:    false,
+		})
+	if err != nil {
+		return fmt.Errorf("error in Stream: %v", err)
+	} else {
+		return nil
+	}
+	
+}
+
+func CreateSqlplusPod(o *OrdsOperations) error{
+
+	typeMetadata := metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+	}
+	objectMetadata := metav1.ObjectMeta{
+		Name: "sqlpluspod",
+		Namespace:    "default",
+	}
+	podSpecs := corev1.PodSpec{
+		Containers:    []corev1.Container{{
+			Name: "sqlpluspod",
+			Image: "iad.ocir.io/espsnonprodint/livesqlsandbox/instantclient:apex19",
+		}},
+	}
+	pod := corev1.Pod{
+			TypeMeta:   typeMetadata,
+			ObjectMeta: objectMetadata,
+			Spec:       podSpecs,
+}
+fmt.Println("Creating sqlpluspod .......")
+createdPod, err := o.clientset.CoreV1().Pods("default").Create(&pod)
+if err != nil {
+	return fmt.Errorf("error in creating sqlpluspod: %v", err)
+}
+time.Sleep(5 * time.Second)
+verifyPodState := func() bool {
+	podStatus, err := o.clientset.CoreV1().Pods("default").Get(createdPod.Name, metav1.GetOptions{})
+	if err != nil {
+		return false
+	} 
+	
+	if podStatus.Status.Phase == corev1.PodRunning {
+		return true
+	} 
+	return false
+}
+//3 min timeout for starting pod
+for i:=0;i<36;i++{
+	if  !verifyPodState() { 
+		fmt.Println("waiting for sqlpluspod to start.......")
+		time.Sleep(5 * time.Second)
+		
+	} else {
+		fmt.Println("sqlpluspod started.......")
+		return nil
+	}
+}
+return fmt.Errorf("Timeout to start sqlpluspod : %v", err)
+
+
+}
+
+func DeleteSqlplusPod(o *OrdsOperations) error {
+
+fmt.Println("Deleting sqlpluspod .......")
+deletePolicy := metav1.DeletePropagationForeground
+
+err := o.clientset.CoreV1().Pods("default").Delete("sqlpluspod", 
+		&metav1.DeleteOptions{
+		PropagationPolicy: &deletePolicy,
+		})
+if err != nil {
+return fmt.Errorf("error in deleting sqlpluspod: %v", err)
+} else {
+time.Sleep(5 * time.Second)
+fmt.Println("Deleted sqlpluspod .......")
+return nil
+}
+
 }
