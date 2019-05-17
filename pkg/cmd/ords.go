@@ -34,6 +34,8 @@ type OrdsOperations struct {
 	clientset        *kubernetes.Clientset
 	restConfig       *rest.Config
 	rawConfig        api.Config
+	ordsconfigmap    *corev1.ConfigMap
+	httpconfigmap    *corev1.ConfigMap
 	genericclioptions.IOStreams
 	UserSpecifiedNamespace  string
 	UserSpecifiedDbhost     string
@@ -98,8 +100,8 @@ func NewCmdOrds(streams genericclioptions.IOStreams) *cobra.Command {
 	_ = viper.BindEnv("syspassword", "KUBECTL_PLUGINS_CURRENT_SYSPASSWORD")
 	_ = viper.BindPFlag("syspassword", cmd.Flags().Lookup("syspassword"))
 
-	cmd.Flags().StringVarP(&o.UserSpecifiedApexpassword, "apexpassword", "x", "password", 
-	"password for apex related DB schemas")
+	cmd.Flags().StringVarP(&o.UserSpecifiedApexpassword, "apexpassword", "x", "BFE2GRPF", 
+	"password for apex,ords related DB schemas")
 	_ = viper.BindEnv("apexpassword", "KUBECTL_PLUGINS_CURRENT_APEXPASSWORD")
 	_ = viper.BindPFlag("apexpassword", cmd.Flags().Lookup("apexpassword"))	
 
@@ -158,8 +160,22 @@ func (o *OrdsOperations) Complete(cmd *cobra.Command, args []string) error {
         fmt.Printf("%#v", err)
     }
 	o.ordshttp = obj.(*appsv1.Deployment)
-	
 	o.ordshttp.ObjectMeta.Namespace = o.UserSpecifiedNamespace
+
+	//complete ords and http configmap settings
+	obj, _, err = decode([]byte(config.Ordsconfigmapyml), nil, nil)
+	if err != nil {
+        fmt.Printf("%#v", err)
+    }
+	o.ordsconfigmap = obj.(*corev1.ConfigMap)
+	o.ordsconfigmap.ObjectMeta.Namespace = o.UserSpecifiedNamespace
+
+	obj, _, err = decode([]byte(config.Httpconfigmapyml), nil, nil)
+	if err != nil {
+        fmt.Printf("%#v", err)
+    }
+	o.httpconfigmap = obj.(*corev1.ConfigMap)
+	o.httpconfigmap.ObjectMeta.Namespace = o.UserSpecifiedNamespace
 	
 	return nil
 }
@@ -173,9 +189,14 @@ func (o *OrdsOperations) Validate(cmd *cobra.Command) error {
 				if err != nil {
 						panic(err.Error())
 		}
+	if 	len(deployclient.Items) == 0 {
+		fmt.Printf("Didn't found Ords Deployment with label app=peordshttp \n")
+		return nil
+	} else {
 	for i := 0;i < len(deployclient.Items);i++ {
 		fmt.Printf("Found %v Deployment with label app=peordshttp in namespace %v\n", deployclient.Items[i].ObjectMeta.Name,deployclient.Items[i].ObjectMeta.Namespace)
 		 }
+	}
 	return nil
 }
 	
@@ -200,17 +221,69 @@ func (o *OrdsOperations) Validate(cmd *cobra.Command) error {
 func (o *OrdsOperations) Run() error {
 	
 	if o.UserSpecifiedCreate {
-		CreateDeployment(o)
+		CreateConfigmaps(o)
+		//CreateDeployment(o)
 	}
 
 	if o.UserSpecifiedDelete {
-		DeleteDeployment(o)
-		DeleteOrdsSchemas(o)
+		//DeleteDeployment(o)
+		//DeleteOrdsSchemas(o)
+    DeleteConfigmaps(o)
 		
  	}
 return nil
  
 }
+
+func CreateConfigmaps(o *OrdsOperations){
+	fmt.Printf("Creating configmap %v in namespace %v...\n",o.ordsconfigmap.ObjectMeta.Name,o.ordsconfigmap.ObjectMeta.Namespace)
+	ConfigMapclient := o.clientset.CoreV1().ConfigMaps(o.UserSpecifiedNamespace)
+    result, err := ConfigMapclient.Create(o.ordsconfigmap)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Created configmap %q.\n", result.GetObjectMeta().GetName())
+
+	fmt.Printf("Creating configmap %v in namespace %v...\n",o.httpconfigmap.ObjectMeta.Name,o.httpconfigmap.ObjectMeta.Namespace)
+	ConfigMapclient = o.clientset.CoreV1().ConfigMaps(o.UserSpecifiedNamespace)
+    result, err = ConfigMapclient.Create(o.httpconfigmap)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Created configmap %q.\n", result.GetObjectMeta().GetName())
+	
+}
+
+func DeleteConfigmaps(o *OrdsOperations){
+	fmt.Printf("Deleting configmap with label app=peordshttp in namespace %v...\n",o.UserSpecifiedNamespace)
+	ConfigMapclient := o.clientset.CoreV1().ConfigMaps(o.UserSpecifiedNamespace)
+	deletePolicy := metav1.DeletePropagationForeground
+	listOptions := metav1.ListOptions{
+        LabelSelector: "app=peordshttp",
+        Limit:         100,
+	}
+	list, err := ConfigMapclient.List(listOptions)
+	if err != nil {
+		panic(err)
+	}
+	//fmt.Printf("length of list: %v",len(list.Items))
+	if len(list.Items) == 0 {
+		fmt.Println("No configmap found\n")
+		return
+	} else {
+	for _, d := range list.Items {
+		fmt.Printf(" * %s \n", d.Name)
+	  }
+    }
+    if err := ConfigMapclient.DeleteCollection(&metav1.DeleteOptions{
+		PropagationPolicy: &deletePolicy,
+	    },listOptions); err != nil {
+		panic(err)
+	}
+	fmt.Printf("Deleted configmaps in namespace %v.\n",o.UserSpecifiedNamespace)
+	
+}
+
 
 func CreateDeployment(o *OrdsOperations) {
 	fmt.Printf("Creating Ords Http Deployment in namespace %v...\n",o.UserSpecifiedNamespace)
@@ -311,9 +384,12 @@ func CreateSqlplusPod(o *OrdsOperations) error{
 	}
 	objectMetadata := metav1.ObjectMeta{
 		Name: "sqlpluspod",
-		Namespace:    "default",
+		Namespace:    o.UserSpecifiedNamespace,
 	}
 	podSpecs := corev1.PodSpec{
+		ImagePullSecrets: []corev1.LocalObjectReference{{
+			Name: "iad-ocir-secret",
+		}},
 		Containers:    []corev1.Container{{
 			Name: "sqlpluspod",
 			Image: "iad.ocir.io/espsnonprodint/livesqlsandbox/instantclient:apex19",
@@ -362,7 +438,7 @@ func DeleteSqlplusPod(o *OrdsOperations) error {
 fmt.Println("Deleting sqlpluspod .......")
 deletePolicy := metav1.DeletePropagationForeground
 
-err := o.clientset.CoreV1().Pods("default").Delete("sqlpluspod", 
+err := o.clientset.CoreV1().Pods(o.UserSpecifiedNamespace).Delete("sqlpluspod", 
 		&metav1.DeleteOptions{
 		PropagationPolicy: &deletePolicy,
 		})
