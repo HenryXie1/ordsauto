@@ -174,6 +174,9 @@ func (o *OrdsOperations) Complete(cmd *cobra.Command, args []string) error {
 		"ordsauto":o.UserSpecifiedOrdsname + "-DeploymentSelector",
 	}
 	o.ordsdeployment.Spec.Selector.MatchLabels = ordsselector
+	o.ordsdeployment.Spec.Template.ObjectMeta.Labels = ordsselector
+	o.ordsdeployment.Spec.Template.Spec.Volumes[0].VolumeSource.ConfigMap.LocalObjectReference = corev1.LocalObjectReference{Name: o.UserSpecifiedOrdsname + "-http-cm"}
+	o.ordsdeployment.Spec.Template.Spec.Volumes[1].VolumeSource.ConfigMap.LocalObjectReference = corev1.LocalObjectReference{Name: o.UserSpecifiedOrdsname + "-ords-cm"}
 
 	//Update service name
 	obj, _, err = decode([]byte(config.OrdsLBsvcyml), nil, nil)
@@ -247,16 +250,16 @@ func (o *OrdsOperations) Run() error {
 	}
 	
 	if o.UserSpecifiedCreate {
-		//CreateConfigmaps(o)
-		//CreateDeployment(o)
+		CreateConfigmaps(o)
+		CreateDeployment(o)
 		CreateSvcOption(o)
 	}
 
 	if o.UserSpecifiedDelete {
-		//DeleteDeployment(o)
-		//DeleteOrdsSchemas(o)
-		//DeleteOrdsConfigmaps(o)
-		//DeleteHttpConfigmaps(o)
+		DeleteDeployment(o)
+		DeleteOrdsSchemas(o)
+		DeleteOrdsConfigmaps(o)
+		DeleteHttpConfigmaps(o)
 	    DeleteSvcOption(o)
 		
  	}
@@ -323,6 +326,7 @@ func CreateConfigmaps(o *OrdsOperations){
 		return
 	}
 	fmt.Printf("Created configmap %q.\n", result.GetObjectMeta().GetName())
+	time.Sleep(5 * time.Second)
 	
 }
 
@@ -356,6 +360,7 @@ func DeleteOrdsConfigmaps(o *OrdsOperations){
 		return
 	}
 	fmt.Printf("Deleted Ords configmaps in namespace %v.\n",o.UserSpecifiedNamespace)
+	time.Sleep(5 * time.Second)
 	
 }
 
@@ -389,6 +394,7 @@ func DeleteHttpConfigmaps(o *OrdsOperations){
 		return
 	}
 	fmt.Printf("Deleted Http configmaps in namespace %v.\n",o.UserSpecifiedNamespace)
+	time.Sleep(5 * time.Second)
 	
 }
 
@@ -401,6 +407,10 @@ func CreateDeployment(o *OrdsOperations) {
 		return
 	}
 	fmt.Printf("Created Ords Deployment: %q.\n", result.GetObjectMeta().GetName())
+	//create Ords schema
+	fmt.Println("Please wait about 3-10 min for Pod to be fully up,use kubectl get po to check.")
+	time.Sleep(5 * time.Second)
+
 	
 }
 
@@ -434,6 +444,7 @@ func DeleteDeployment(o *OrdsOperations) {
 		return
 	}
 	fmt.Printf("Deleted Ords %q deployment in namespace %v.\n",o.UserSpecifiedOrdsname, o.UserSpecifiedNamespace)
+	time.Sleep(5 * time.Second)
 }
 
 func DeleteOrdsSchemas(o *OrdsOperations) {
@@ -601,6 +612,8 @@ func CreateSvcOption(o *OrdsOperations) {
 	}
 	fmt.Printf("Created service %q.\n", result.GetObjectMeta().GetName())
 	fmt.Printf("Url to access Apex service via Ords: http://%v\n",OrdsExternalIP)
+	fmt.Println("workspace:internal,username:admin,password:Welcome1` (Use apxchpwd.sql to change it)" )
+	time.Sleep(5 * time.Second)
 }
 
 func DeleteSvcOption(o *OrdsOperations) {
@@ -633,6 +646,7 @@ func DeleteSvcOption(o *OrdsOperations) {
 				  return 
 	  }
 	  fmt.Printf("Deleted services in namespace %v.\n",o.UserSpecifiedNamespace)
+	  time.Sleep(5 * time.Second)
 	  return 
   
   }
