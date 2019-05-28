@@ -251,16 +251,17 @@ func (o *OrdsOperations) Run() error {
 	
 	if o.UserSpecifiedCreate {
 		CreateConfigmaps(o)
-		CreateDeployment(o)
-		CreateSvcOption(o)
+		CreateOrdsSchemas(o)
+		//CreateDeployment(o)
+		//CreateSvcOption(o)
 	}
 
 	if o.UserSpecifiedDelete {
-		DeleteDeployment(o)
+		//DeleteDeployment(o)
 		DeleteOrdsSchemas(o)
 		DeleteOrdsConfigmaps(o)
 		DeleteHttpConfigmaps(o)
-	    DeleteSvcOption(o)
+	  //DeleteSvcOption(o)
 		
  	}
 return nil
@@ -407,10 +408,24 @@ func CreateDeployment(o *OrdsOperations) {
 		return
 	}
 	fmt.Printf("Created Ords Deployment: %q.\n", result.GetObjectMeta().GetName())
-	//create Ords schema
 	fmt.Println("Please wait about 3-10 min for Pod to be fully up,use kubectl get po to check.")
 	time.Sleep(5 * time.Second)
+	
+}
 
+func CreateOrdsSchemas(o *OrdsOperations) {
+	CreateOrdsPod(o)
+
+	fmt.Printf("Create Ords schemas(ORDS_METADA,ORDS_PUBLIC_USER) in Target DB Host %v....\n",o.UserSpecifiedDbhost)
+	ordstext := "mv /opt/oracle/ords/config/ords/defaults.xml /tmp;cp /mnt/k8s/ords_params.properties /tmp/ords_params.properties;java -jar /opt/oracle/ords/ords.war install --parameterFile /tmp/ords_params.properties simple"
+	OrdsCommand := []string{"/bin/sh", "-c", ordstext}	 
+	Podname := "ordspod"
+	err := ExecPodCmd(o,Podname,OrdsCommand)
+	if err != nil {
+		fmt.Printf("Error occured in the Pod ,OrdsCommand %q. Error: %+v\n", OrdsCommand, err)
+	} 
+
+	DeleteOrdsPod(o)
 	
 }
 
@@ -555,6 +570,77 @@ return fmt.Errorf("Timeout to start sqlpluspod : %v", err)
 
 }
 
+func CreateOrdsPod(o *OrdsOperations) error{
+
+	typeMetadata := metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+	}
+	objectMetadata := metav1.ObjectMeta{
+		Name: "ordspod",
+		Namespace:    o.UserSpecifiedNamespace,
+	}
+
+	configmapvolume := &corev1.ConfigMapVolumeSource{
+		LocalObjectReference: corev1.LocalObjectReference{Name: o.UserSpecifiedOrdsname + "-ords-cm"},
+	}
+
+	podSpecs := corev1.PodSpec{
+		//ImagePullSecrets: []corev1.LocalObjectReference{{
+		//	Name: "iad-ocir-secret",
+		//}},
+		Volumes:  []corev1.Volume{{
+			Name: "ords-config",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: configmapvolume,
+			},
+		}},
+		Containers:    []corev1.Container{{
+			Name: "ordspod",
+			Image: "iad.ocir.io/espsnonprodint/autostg/apexords:v19",
+			VolumeMounts: []corev1.VolumeMount{{
+				Name: "ords-config",
+				MountPath: "/mnt/k8s",
+			}},
+		}},
+	}
+	pod := corev1.Pod{
+			TypeMeta:   typeMetadata,
+			ObjectMeta: objectMetadata,
+			Spec:       podSpecs,
+}
+fmt.Println("Creating ords pod .......")
+createdPod, err := o.clientset.CoreV1().Pods("default").Create(&pod)
+if err != nil {
+	return fmt.Errorf("error in creating ords pod: %v", err)
+}
+time.Sleep(5 * time.Second)
+verifyPodState := func() bool {
+	podStatus, err := o.clientset.CoreV1().Pods("default").Get(createdPod.Name, metav1.GetOptions{})
+	if err != nil {
+		return false
+	} 
+	
+	if podStatus.Status.Phase == corev1.PodRunning {
+		return true
+	} 
+	return false
+}
+//10 min timeout for starting pod
+for i:=0;i<120;i++{
+	if  !verifyPodState() { 
+		fmt.Println("waiting for ordspod to start.......")
+		time.Sleep(5 * time.Second)
+		
+	} else {
+		fmt.Println("ords pod started.......")
+		return nil
+	}
+}
+return fmt.Errorf("Timeout to start ordspod : %v", err)
+
+}
+
 func DeleteSqlplusPod(o *OrdsOperations) error {
 
 fmt.Println("Deleting sqlpluspod .......")
@@ -573,6 +659,25 @@ return nil
 }
 
 }
+
+func DeleteOrdsPod(o *OrdsOperations) error {
+
+	fmt.Println("Deleting ordspod .......")
+	deletePolicy := metav1.DeletePropagationForeground
+	
+	err := o.clientset.CoreV1().Pods(o.UserSpecifiedNamespace).Delete("ordspod", 
+			&metav1.DeleteOptions{
+			PropagationPolicy: &deletePolicy,
+			})
+	if err != nil {
+	return fmt.Errorf("error in deleting ordspod: %v", err)
+	} else {
+	time.Sleep(5 * time.Second)
+	fmt.Println("Deleted ordspod .......")
+	return nil
+	}
+	
+	}
 
 func CreateSvcOption(o *OrdsOperations) {
 	
