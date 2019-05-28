@@ -96,7 +96,7 @@ data:
     <!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
     <properties>
     <comment>Saved on Tue Jan 09 04:08:24 UTC 2018</comment>
-    <entry key="db.password">welcome1</entry>
+    <entry key="db.password">replacepwdapexordsauto</entry>
     <entry key="db.username">APEX_PUBLIC_USER</entry>
     </properties>
   apex_al.xml: |
@@ -104,7 +104,7 @@ data:
     <!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
     <properties>
     <comment>Saved on Tue Jan 09 04:08:24 UTC 2018</comment>
-    <entry key="db.password">welcome1</entry>
+    <entry key="db.password">replacepwdapexordsauto</entry>
     <entry key="db.username">APEX_LISTENER</entry>
     </properties>
   apex_pu.xml: |
@@ -112,7 +112,7 @@ data:
     <!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
     <properties>
     <comment>Saved on Tue Jan 09 04:08:24 UTC 2018</comment>
-    <entry key="db.password">welcome1</entry>
+    <entry key="db.password">replacepwdapexordsauto</entry>
     <entry key="db.username">ORDS_PUBLIC_USER</entry>
     </properties>
   apex_rt.xml: |
@@ -120,7 +120,7 @@ data:
     <!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
     <properties>
     <comment>Saved on Tue Jan 09 04:08:24 UTC 2018</comment>
-    <entry key="db.password">welcome1</entry>
+    <entry key="db.password">replacepwdapexordsauto</entry>
     <entry key="db.username">APEX_REST_PUBLIC_USER</entry>
     </properties>
   defaults.xml: |
@@ -136,9 +136,9 @@ data:
     <entry key="cache.monitorInterval">60</entry>
     <entry key="cache.procedureNameList"/>
     <entry key="cache.type">lru</entry>
-    <entry key="db.hostname">testcdb-svc</entry>
-    <entry key="db.port">1521</entry>
-    <entry key="db.servicename">testpdb</entry>
+    <entry key="db.hostname">ordsautodbhost</entry>
+    <entry key="db.port">ordsautodbport</entry>
+    <entry key="db.servicename">ordsautodbservice</entry>
     <entry key="debug.debugger">true</entry>
     <entry key="debug.printDebugToScreen">true</entry>
     <entry key="error.keepErrorMessages">true</entry>
@@ -181,10 +181,10 @@ data:
     standalone.static.context.path=/i
     standalone.static.path=/opt/oracle/ords/images/
   ords_params.properties: |
-    db.hostname=testcdb-svc
-    db.password=welcome1
-    db.port=1521
-    db.servicename=testpdb
+    db.hostname=ordsautodbhost
+    db.password=replacepwdapexordsauto
+    db.port=ordsautodbport
+    db.servicename=ordsautodbservice
     db.username=APEX_PUBLIC_USER
     migrate.apex.rest=false
     plsql.gateway.add=true
@@ -196,13 +196,13 @@ data:
     standalone.mode=false
     standalone.static.images=/opt/oracle/ords/images/
     standalone.use.https=false
-    user.apex.listener.password=welcome1
-    user.apex.restpublic.password=welcome1
-    user.public.password=welcome1
+    user.apex.listener.password=replacepwdapexordsauto
+    user.apex.restpublic.password=replacepwdapexordsauto
+    user.public.password=replacepwdapexordsauto
     user.tablespace.default=SYSAUX
     user.tablespace.temp=TEMP
     sys.user=SYS
-    sys.password=sthcomplex
+    sys.password=replacepwdsysordsauto
 kind: ConfigMap
 metadata:
   name: ordsautoconfig

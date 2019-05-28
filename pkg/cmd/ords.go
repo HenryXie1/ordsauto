@@ -155,6 +155,15 @@ func (o *OrdsOperations) Complete(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+
+	//update sys apex passwords, dbhost, db service in yaml
+	  //fmt.Printf("myaml old is : %v\n",config.Ordsconfigmapyml)
+		config.Ordsconfigmapyml = strings.ReplaceAll(config.Ordsconfigmapyml,"replacepwdapexordsauto",o.UserSpecifiedApexpassword)
+		config.Ordsconfigmapyml = strings.ReplaceAll(config.Ordsconfigmapyml,"ordsautodbhost",o.UserSpecifiedDbhost)
+		config.Ordsconfigmapyml = strings.ReplaceAll(config.Ordsconfigmapyml,"ordsautodbport",o.UserSpecifiedDbport)
+		config.Ordsconfigmapyml = strings.ReplaceAll(config.Ordsconfigmapyml,"ordsautodbservice",o.UserSpecifiedService)
+		config.Ordsconfigmapyml = strings.ReplaceAll(config.Ordsconfigmapyml,"replacepwdsysordsauto",o.UserSpecifiedSyspassword)
+		//fmt.Printf("myaml new is : %v\n",config.Ordsconfigmapyml)
 		
 	//complete ords settings
 	decode := scheme.Codecs.UniversalDeserializer().Decode
@@ -246,22 +255,22 @@ func (o *OrdsOperations) Validate(cmd *cobra.Command) error {
 func (o *OrdsOperations) Run() error {
 	if o.UserSpecifiedList {
 		ListOption(o)
-	    return nil
+		return nil
 	}
 	
 	if o.UserSpecifiedCreate {
 		CreateConfigmaps(o)
 		CreateOrdsSchemas(o)
-		//CreateDeployment(o)
-		//CreateSvcOption(o)
+		CreateDeployment(o)
+		CreateSvcOption(o)
 	}
 
 	if o.UserSpecifiedDelete {
-		//DeleteDeployment(o)
+		DeleteDeployment(o)
 		DeleteOrdsSchemas(o)
 		DeleteOrdsConfigmaps(o)
 		DeleteHttpConfigmaps(o)
-	  //DeleteSvcOption(o)
+		DeleteSvcOption(o)
 		
  	}
 return nil
@@ -484,7 +493,7 @@ func ExecPodCmd(o *OrdsOperations,Podname string,SqlCommand []string) error {
 	execReq := o.clientset.CoreV1().RESTClient().Post().
 	    Resource("pods").
 		Name(Podname).
-		Namespace("default").
+		Namespace(o.UserSpecifiedNamespace).
 		SubResource("exec")
 
     execReq.VersionedParams(&corev1.PodExecOptions{
@@ -538,13 +547,13 @@ func CreateSqlplusPod(o *OrdsOperations) error{
 			Spec:       podSpecs,
 }
 fmt.Println("Creating sqlpluspod .......")
-createdPod, err := o.clientset.CoreV1().Pods("default").Create(&pod)
+createdPod, err := o.clientset.CoreV1().Pods(o.UserSpecifiedNamespace).Create(&pod)
 if err != nil {
 	return fmt.Errorf("error in creating sqlpluspod: %v", err)
 }
 time.Sleep(5 * time.Second)
 verifyPodState := func() bool {
-	podStatus, err := o.clientset.CoreV1().Pods("default").Get(createdPod.Name, metav1.GetOptions{})
+	podStatus, err := o.clientset.CoreV1().Pods(o.UserSpecifiedNamespace).Get(createdPod.Name, metav1.GetOptions{})
 	if err != nil {
 		return false
 	} 
@@ -610,13 +619,13 @@ func CreateOrdsPod(o *OrdsOperations) error{
 			Spec:       podSpecs,
 }
 fmt.Println("Creating ords pod .......")
-createdPod, err := o.clientset.CoreV1().Pods("default").Create(&pod)
+createdPod, err := o.clientset.CoreV1().Pods(o.UserSpecifiedNamespace).Create(&pod)
 if err != nil {
 	return fmt.Errorf("error in creating ords pod: %v", err)
 }
 time.Sleep(5 * time.Second)
 verifyPodState := func() bool {
-	podStatus, err := o.clientset.CoreV1().Pods("default").Get(createdPod.Name, metav1.GetOptions{})
+	podStatus, err := o.clientset.CoreV1().Pods(o.UserSpecifiedNamespace).Get(createdPod.Name, metav1.GetOptions{})
 	if err != nil {
 		return false
 	} 
