@@ -1,4 +1,4 @@
-# Automation tool to create Http Ords and Loadbalancer in K8S
+# Automation Tool to Create Http Ords and Loadbalancer in K8S
 
 A kubectl plugin that create http and ords( Oracle Rest Data Services) based on [Apex (oracle application express) 19.1](https://github.com/HenryXie1/apexauto)
 
