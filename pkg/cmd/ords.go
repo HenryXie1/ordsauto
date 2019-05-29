@@ -172,10 +172,7 @@ func (o *OrdsOperations) Complete(cmd *cobra.Command, args []string) error {
 	if err != nil {
         fmt.Printf("%#v", err)
     }
-	obj, _, err = decode([]byte(config.Ordsyml), nil, nil)
-	if err != nil {
-        fmt.Printf("%#v", err)
-    }
+	
 	o.ordsdeployment = obj.(*appsv1.Deployment)
 	o.ordsdeployment.ObjectMeta.Name = o.UserSpecifiedOrdsname
 	o.ordsdeployment.ObjectMeta.Namespace = o.UserSpecifiedNamespace
