@@ -8,7 +8,7 @@ Once we have [Apex](https://github.com/HenryXie1/apexauto) ready .  We often nee
 ords image is based on docker images of [oracle github](https://github.com/oracle/docker-images).
 
 ### Demo
-![Demo!](images/kubectl-apex-create1.gif)
+![Demo!](images/kubectl-ords-create.gif)
 
 ## Installation
 
