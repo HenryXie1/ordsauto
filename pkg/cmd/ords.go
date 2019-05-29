@@ -37,6 +37,7 @@ type OrdsOperations struct {
 	ordsconfigmap    *corev1.ConfigMap
 	httpconfigmap    *corev1.ConfigMap
 	ordssvc          *corev1.Service
+	ordsnodeportsvc  *corev1.Service
 	genericclioptions.IOStreams
 	UserSpecifiedOrdsname   string
 	UserSpecifiedNamespace  string
@@ -65,7 +66,7 @@ func NewCmdOrds(streams genericclioptions.IOStreams) *cobra.Command {
 	o := NewOrdsOperations(streams)
 
 	cmd := &cobra.Command{
-		Use:          "ords list|create|delete [-o ordsname][-n namespace][-d dbhostname] [-p 1521] [-s dbservice] [-w syspassword] [-x apexpassword] ",
+		Use:          "ords list|create|delete [-o ordsname][-n namespace][-d dbhostname] [-p 1521] [-s dbservice] [-w syspassword] [-x apexpassword]",
 		Short:        "create or delete ords + http deployment in K8S",
 		Example:      fmt.Sprintf(config.OrdsExample),
 		SilenceUsage: true,
@@ -187,7 +188,7 @@ func (o *OrdsOperations) Complete(cmd *cobra.Command, args []string) error {
 	o.ordsdeployment.Spec.Template.Spec.Volumes[0].VolumeSource.ConfigMap.LocalObjectReference = corev1.LocalObjectReference{Name: o.UserSpecifiedOrdsname + "-http-cm"}
 	o.ordsdeployment.Spec.Template.Spec.Volumes[1].VolumeSource.ConfigMap.LocalObjectReference = corev1.LocalObjectReference{Name: o.UserSpecifiedOrdsname + "-ords-cm"}
 
-	//Update service name
+	//Update LB service name
 	obj, _, err = decode([]byte(config.OrdsLBsvcyml), nil, nil)
 	if err != nil {
 	  fmt.Printf("%#v", err)
@@ -195,7 +196,17 @@ func (o *OrdsOperations) Complete(cmd *cobra.Command, args []string) error {
 	  o.ordssvc = obj.(*corev1.Service)
 	  o.ordssvc.ObjectMeta.Name = o.UserSpecifiedOrdsname + "-svc"
 	  o.ordssvc.ObjectMeta.Namespace = o.UserSpecifiedNamespace
-	  o.ordssvc.Spec.Selector = ordsselector
+		o.ordssvc.Spec.Selector = ordsselector
+		
+	//Update nodeport service name
+	obj, _, err = decode([]byte(config.OrdsNodePortsvcyml), nil, nil)
+	if err != nil {
+	  fmt.Printf("%#v", err)
+	  }
+	  o.ordsnodeportsvc = obj.(*corev1.Service)
+	  o.ordsnodeportsvc.ObjectMeta.Name = o.UserSpecifiedOrdsname + "-nodeport-svc"
+	  o.ordsnodeportsvc.ObjectMeta.Namespace = o.UserSpecifiedNamespace
+		o.ordsnodeportsvc.Spec.Selector = ordsselector
 
 	//complete ords and http configmap settings
 	obj, _, err = decode([]byte(config.Ordsconfigmapyml), nil, nil)
@@ -689,10 +700,27 @@ func DeleteOrdsPod(o *OrdsOperations) error {
 	}
 
 func CreateSvcOption(o *OrdsOperations) {
-	
-	fmt.Printf("Creating Load Balancer service for Ords in namespace %v...\n",o.UserSpecifiedNamespace)
+	fmt.Printf("Creating nodeport service for Ords in namespace %v...\n",o.UserSpecifiedNamespace)
 	Svcclient := o.clientset.CoreV1().Services(o.UserSpecifiedNamespace)
-    result, err := Svcclient.Create(o.ordssvc)
+    result, err := Svcclient.Create(o.ordsnodeportsvc)
+	if err != nil {
+		fmt.Println(err)
+		return 
+	}
+	fmt.Printf("Created service %q.\n\n", result.GetObjectMeta().GetName())
+	NodePortResult := result.Spec.Ports[0].NodePort
+	//find a host IP address for nodeport service connections
+	NodeStatus, err := o.clientset.CoreV1().Nodes().List(metav1.ListOptions{})
+	if err != nil {
+		fmt.Println(err)
+		return 
+	} 
+	OrdsHostip := NodeStatus.Items[0].Status.Addresses[0].Address
+
+
+	fmt.Printf("Creating Load Balancer service for Ords in namespace %v...\n",o.UserSpecifiedNamespace)
+	Svcclient = o.clientset.CoreV1().Services(o.UserSpecifiedNamespace)
+    result, err = Svcclient.Create(o.ordssvc)
 	if err != nil {
 		fmt.Println(err)
 		return 
@@ -725,10 +753,12 @@ func CreateSvcOption(o *OrdsOperations) {
 		}
 	}
 	fmt.Printf("Created service %q.\n", result.GetObjectMeta().GetName())
-	fmt.Printf("Url to access Apex service via Ords: http://%v\n",OrdsExternalIP)
+	fmt.Printf("Url to access Apex service via nodeport: http://%v:%v \n",OrdsHostip ,NodePortResult)
+	fmt.Printf("Url to access Apex service via Loadbalancer: http://%v\n",OrdsExternalIP)
 	fmt.Println("workspace:internal,username:admin,password:Welcome1` (Use apxchpwd.sql to change it)" )
 	time.Sleep(5 * time.Second)
 }
+
 
 func DeleteSvcOption(o *OrdsOperations) {
 	fmt.Printf("Deleting Load Balancer service %v with label app=peordsauto in namespace %v...\n",o.UserSpecifiedOrdsname + "-svc",o.UserSpecifiedNamespace)
@@ -759,7 +789,37 @@ func DeleteSvcOption(o *OrdsOperations) {
 				  fmt.Println(err)
 				  return 
 	  }
-	  fmt.Printf("Deleted services in namespace %v.\n",o.UserSpecifiedNamespace)
+		fmt.Printf("Deleted load balancer services in namespace %v.\n",o.UserSpecifiedNamespace)
+		
+		fmt.Printf("Deleting nodeport service %v with label app=peordsauto in namespace %v...\n",o.UserSpecifiedOrdsname + "-svc",o.UserSpecifiedNamespace)
+	  Svcclient = o.clientset.CoreV1().Services(o.UserSpecifiedNamespace)
+	  deletePolicy = metav1.DeletePropagationForeground
+	  listOptions = metav1.ListOptions{
+				  LabelSelector: "app=peordsauto",
+				  FieldSelector: "metadata.name=" + o.UserSpecifiedOrdsname + "-nodeport-svc",
+		  Limit:         100,
+	  }
+	  list, err = Svcclient.List(listOptions)
+	  if err != nil {
+		  fmt.Println(err)
+		  return 
+	  }
+	  
+	  if len(list.Items) == 0 {
+		  fmt.Println("No Services found")
+		  return 
+	  } else {
+	  for _, d := range list.Items {
+		  fmt.Printf(" * %s \n", d.Name)
+		}
+	  }
+	  if err := Svcclient.Delete(o.UserSpecifiedOrdsname + "-nodeport-svc", &metav1.DeleteOptions{
+		  PropagationPolicy: &deletePolicy,
+		  }); err != nil {
+				  fmt.Println(err)
+				  return 
+	  }
+	  fmt.Printf("Deleted nodeport services in namespace %v.\n",o.UserSpecifiedNamespace)
 	  time.Sleep(5 * time.Second)
 	  return 
   

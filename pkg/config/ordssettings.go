@@ -21,10 +21,6 @@ OrdsLBsvcyml = `
 apiVersion: v1
 kind: Service
 metadata:
-  annotations:
-    service.beta.kubernetes.io/oci-load-balancer-shape: "100Mbps"
-    service.beta.kubernetes.io/oci-load-balancer-internal: "true"
-    service.beta.kubernetes.io/oci-load-balancer-backend-protocol: "HTTP"
   labels:
     app: peordsauto
   name: ordsauto-lb-service
@@ -43,6 +39,24 @@ spec:
     name: ordsauto-service
   sessionAffinity: None
   type: LoadBalancer
+`
+OrdsNodePortsvcyml = `
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: peordsauto
+  name: ordsauto-nodeport-service
+spec:
+  externalTrafficPolicy: Cluster
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    name: ordsauto-service
+  type: NodePort
 `
 
 Ordsyml = `
