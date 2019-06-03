@@ -753,6 +753,7 @@ func CreateSvcOption(o *OrdsOperations) {
 	fmt.Printf("Url to access Apex service via nodeport: http://%v:%v \n",OrdsHostip ,NodePortResult)
 	fmt.Printf("Url to access Apex service via Loadbalancer: http://%v\n",OrdsExternalIP)
 	fmt.Println("workspace:internal,username:admin,password:Welcome1` (Use apxchpwd.sql to change it)" )
+	fmt.Println("If Apex runtime only is installed,internal workspace is not available." )
 	time.Sleep(5 * time.Second)
 }
 
