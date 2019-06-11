@@ -51,10 +51,10 @@ Flags:
   -w, --syspassword string    sys password of DB service
 ```
 ## Edit httpd.conf and Ords related config files
-All related config files are stored in configmap
-Use kubectl get cm to find related configmap
-Use kubectl ctl edit cm  <configmap name> to edit and save it
-Delete the pod to bounce the service to let new configurations become effective
+All related config files are stored in configmap.
+Use kubectl get cm to find related configmap.
+Use kubectl ctl edit cm  <configmap name> to edit and save it.
+Delete the pod to bounce the service to let new configurations become effective.
 
 ### Contribution
 More than welcome! please don't hesitate to open bugs, questions, pull requests 
