@@ -770,12 +770,12 @@ func DeleteSvcOption(o *OrdsOperations) {
 	  list, err := Svcclient.List(listOptions)
 	  if err != nil {
 		  fmt.Println(err)
-		  return 
+		   
 	  }
 	  
 	  if len(list.Items) == 0 {
 		  fmt.Println("No Services found")
-		  return 
+		   
 	  } else {
 	  for _, d := range list.Items {
 		  fmt.Printf(" * %s \n", d.Name)
@@ -785,11 +785,11 @@ func DeleteSvcOption(o *OrdsOperations) {
 		  PropagationPolicy: &deletePolicy,
 		  }); err != nil {
 				  fmt.Println(err)
-				  return 
+				   
 	  }
 		fmt.Printf("Deleted load balancer services in namespace %v.\n",o.UserSpecifiedNamespace)
 		
-		fmt.Printf("Deleting nodeport service %v with label app=peordsauto in namespace %v...\n",o.UserSpecifiedOrdsname + "-svc",o.UserSpecifiedNamespace)
+	  fmt.Printf("Deleting nodeport service %v with label app=peordsauto in namespace %v...\n",o.UserSpecifiedOrdsname + "-svc",o.UserSpecifiedNamespace)
 	  Svcclient = o.clientset.CoreV1().Services(o.UserSpecifiedNamespace)
 	  deletePolicy = metav1.DeletePropagationForeground
 	  listOptions = metav1.ListOptions{
@@ -800,12 +800,12 @@ func DeleteSvcOption(o *OrdsOperations) {
 	  list, err = Svcclient.List(listOptions)
 	  if err != nil {
 		  fmt.Println(err)
-		  return 
+		   
 	  }
 	  
 	  if len(list.Items) == 0 {
 		  fmt.Println("No Services found")
-		  return 
+		   
 	  } else {
 	  for _, d := range list.Items {
 		  fmt.Printf(" * %s \n", d.Name)
@@ -815,7 +815,7 @@ func DeleteSvcOption(o *OrdsOperations) {
 		  PropagationPolicy: &deletePolicy,
 		  }); err != nil {
 				  fmt.Println(err)
-				  return 
+				   
 	  }
 	  fmt.Printf("Deleted nodeport services in namespace %v.\n",o.UserSpecifiedNamespace)
 	  time.Sleep(5 * time.Second)

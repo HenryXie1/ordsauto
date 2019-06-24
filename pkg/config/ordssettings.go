@@ -11,11 +11,11 @@ OrdsExample = `
   # httpd container uses iad.ocir.io/espsnonprodint/autostg/oel-httpd:v4
   # list ords deployment with label app=peordshttp
   # list versions ords and Apex status in DB
-	kubectl ords list -d dbhost -p 1521 -s testpdbsvc -w syspassword
-	# create ords and http Pod with spefified name, run java ords.war install in the pod
-	kubectl ords create -o myordsauto -d dbhost -p 1521 -s testpdbsvc -w syspassword -x apexpassword
-	# delete ords deployment and drop ords related schemas in DB
-	kubectl ords delete -o myordsauto -d dbhost -p 1521 -s testpdbsvc -w syspassword
+  kubectl ords list -d dbhost -p 1521 -s testpdbsvc -w syspassword
+  # create ords and http Pod with spefified name, run java ords.war install in the pod
+  kubectl ords create -o myordsauto -d dbhost -p 1521 -s testpdbsvc -w syspassword -x apexpassword
+  # delete ords deployment and drop ords related schemas in DB
+  kubectl ords delete -o myordsauto -d dbhost -p 1521 -s testpdbsvc -w syspassword
 	`
 OrdsLBsvcyml = `
 apiVersion: v1
