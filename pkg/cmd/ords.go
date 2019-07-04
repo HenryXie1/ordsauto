@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	//"bytes"
 	//"io/ioutil"
 	"github.com/pkg/errors"
 	//log "github.com/sirupsen/logrus"
