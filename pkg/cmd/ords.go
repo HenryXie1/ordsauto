@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	//"io"
 	//"bytes"
 	//"io/ioutil"
 	"github.com/pkg/errors"
