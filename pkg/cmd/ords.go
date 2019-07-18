@@ -14,7 +14,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/remotecommand"
-	//"k8s.io/api/extensions/v1beta1"
 	"os"
 	//"os/exec"
 	//"path/filepath"
