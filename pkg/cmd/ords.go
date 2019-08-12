@@ -436,7 +436,7 @@ func CreateOrdsSchemas(o *OrdsOperations) {
 		fmt.Printf("Error occured in the Pod ,OrdsCommand %q. Error: %+v\n", OrdsCommand, err)
 	} 
 
-	DeleteOrdsPod(o)
+	//DeleteOrdsPod(o)
 	
 }
 
@@ -608,7 +608,8 @@ func CreateOrdsPod(o *OrdsOperations) error{
 		}},
 		Containers:    []corev1.Container{{
 			Name: "ordspod",
-			Image: "iad.ocir.io/espsnonprodint/autostg/apexords:v19",
+			//Image: "iad.ocir.io/espsnonprodint/autostg/apexords:v19",
+			Image: "iad.ocir.io/espsnonprodint/autostg/tomcat9-ords18:v1",
 			VolumeMounts: []corev1.VolumeMount{{
 				Name: "ords-config",
 				MountPath: "/mnt/k8s",

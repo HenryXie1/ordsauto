@@ -81,15 +81,16 @@ spec:
             - name: httpd-config
               configMap:
                  name: httpautoconfig
-            - name: ords-config
+            - name: ords-tomcat-config
               configMap:
                  name: ordsautoconfig
          containers:
            - name: ords
-             image: iad.ocir.io/espsnonprodint/autostg/apexords:v19
-             imagePullPolicy: IfNotPresent
+             #image: iad.ocir.io/espsnonprodint/autostg/apexords:v19
+             image: iad.ocir.io/espsnonprodint/autostg/tomcat9-ords18:v1
+             imagePullPolicy: Always
              volumeMounts:
-                - name: ords-config
+                - name: ords-tomcat-config
                   mountPath: /mnt/k8s
              ports:
                 - containerPort: 8888
@@ -105,6 +106,56 @@ spec:
 Ordsconfigmapyml = `
 apiVersion: v1
 data:
+  context.xml: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <Context antiResourceLocking="false" privileged="true" >
+    <!--
+      <Valve className="org.apache.catalina.valves.RemoteAddrValve"
+           allow="127\.\d+\.\d+\.\d+|::1|0:0:0:0:0:0:0:1" />
+    -->
+    <Manager sessionAttributeValueClassNameFilter="java\.lang\.(?:Boolean|Integer|Long|Number|String)|org\.apache\.catalina\.filters\.CsrfPreventionFilter\$LruCache(?:\$1)?|java\.util\.(?:Linked)?HashMap"/>
+    </Context>
+  tomcat-users.xml: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <tomcat-users xmlns="http://tomcat.apache.org/xml"
+                xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                xsi:schemaLocation="http://tomcat.apache.org/xml tomcat-users.xsd"
+                version="1.0">
+    </tomcat-users>
+  server.xml: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <Server port="8005" shutdown="SHUTDOWN">
+    <Listener className="org.apache.catalina.startup.VersionLoggerListener" />
+    <Listener className="org.apache.catalina.core.AprLifecycleListener" SSLEngine="on" />
+    <Listener className="org.apache.catalina.core.JreMemoryLeakPreventionListener" />
+    <Listener className="org.apache.catalina.mbeans.GlobalResourcesLifecycleListener" />
+    <Listener className="org.apache.catalina.core.ThreadLocalLeakPreventionListener" />
+    <GlobalNamingResources>
+    <Resource name="UserDatabase" auth="Container"
+                type="org.apache.catalina.UserDatabase"
+                description="User database that can be updated and saved"
+                factory="org.apache.catalina.users.MemoryUserDatabaseFactory"
+                pathname="conf/tomcat-users.xml" />
+    </GlobalNamingResources>
+    <Service name="Catalina">
+    <Connector port="8888" protocol="HTTP/1.1"
+                 connectionTimeout="20000"
+                 redirectPort="8443" />
+    <Connector port="8009" protocol="AJP/1.3" redirectPort="8443" />
+    <Engine name="Catalina" defaultHost="localhost">
+    <Realm className="org.apache.catalina.realm.LockOutRealm">
+    <Realm className="org.apache.catalina.realm.UserDatabaseRealm"
+                 resourceName="UserDatabase"/>
+    </Realm>
+    <Host name="localhost"  appBase="webapps"
+              unpackWARs="true" autoDeploy="true">
+    <Valve className="org.apache.catalina.valves.AccessLogValve" directory="logs"
+                 prefix="localhost_access_log" suffix=".txt"
+                 pattern="%h %l %u %t &quot;%r&quot; %s %b" />
+    </Host>
+    </Engine>
+    </Service>
+    </Server>
   apex.xml: |
     <?xml version="1.0" encoding="UTF-8" standalone="no"?>
     <!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
@@ -206,10 +257,10 @@ data:
     rest.services.ords.add=true
     schema.tablespace.default=SYSAUX
     schema.tablespace.temp=TEMP
-    standalone.http.port=8888
+    #standalone.http.port=8888
     standalone.mode=false
-    standalone.static.images=/opt/oracle/ords/images/
-    standalone.use.https=false
+    #standalone.static.images=/opt/oracle/ords/images/
+    #standalone.use.https=false
     user.apex.listener.password=replacepwdapexordsauto
     user.apex.restpublic.password=replacepwdapexordsauto
     user.public.password=replacepwdapexordsauto
